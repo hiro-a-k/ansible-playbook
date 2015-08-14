@@ -1,19 +1,77 @@
-- hosts: all
+- hosts: front
   sudo: yes
+  vars:
+    mysql_root_pw: "password"
   tasks:
     - name: yum update
       yum: name=* state=latest
 
-    - name: Install libselinux-python
-      yum: name=libselinux-python state=present
+    - include: selinux-off.yml
+
+    - include: iptables-stop.yml
 
     - replace: dest=/etc/yum.repos.d/{{item}} regexp="enabled *= *1" replace="enabled=0"
       with_items:
       - epel.repo
       - remi.repo
 
-    - name: install by yum
-      yum: name={{item}} state=latest
+    - name: apache install
+      yum: name=httpd state=latest
+      notify:
+        - restart apache
+
+    - name: gcc install
+      yum: name=gcc state=latest
+
+    - name: redis download
+      get_url: >
+        url=http://download.redis.io/releases/redis-2.8.19.tar.gz
+        dest=/tmp/redis-2.8.19.tar.gz
+    - name: redis unarchive
+      command: >
+        tar zvfx redis-2.8.19.tar.gz
+        chdir=/tmp/
+    - name: make
+      command: >
+        make
+        chdir=/tmp/redis-2.8.19
+    - name: make install
+      command: >
+        make install
+        chdir=/tmp/redis-2.8.19
+    - name: daemon
+      replace: >
+        dest=/tmp/redis-2.8.19/redis.conf
+        regexp='daemonize no'
+        replace='daemonize yes'
+    - name: redis conf copy
+      command: cp /tmp/redis-2.8.19/redis.conf /etc/redis.conf
+    - name: redis start
+      command: >
+        redis-server /etc/redis.conf
+      sudo: no
+
+    - name: php install
+      yum: name={{item}} state=present enablerepo=remi-php55,epel
       with_items:
-        - httpd
-        - vim
+        - php
+        - php-devel
+        - php-mbstring
+        - php-mysql
+        - php-gd
+      notify:
+        - restart apache
+
+    - name: mysql install
+      yum: name=mysql-server state=installed enablerepo=remi,epel
+      notify:
+        - mysql setup
+        - mysql set password
+
+  handlers:
+    - name: restart apache
+      service: name=httpd state=restarted enabled=yes
+    - name: mysql setup
+      service: name=mysqld state=started enabled=yes
+    - name: mysql set password
+      command: mysqladmin -u root password "{{mysql_root_pw}}"

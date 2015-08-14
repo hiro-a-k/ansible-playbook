@@ -1,0 +1,10 @@
+    - name: Install libselinux-python
+      yum: name=libselinux-python state=installed
+
+    - name: disable selinux
+      sudo: yes
+      selinux: state=disabled
+
+    - name: selinux config edit
+      command: sed -i -e "s/^SELINUX=enforing/SELINUX=disabled/g" /etc/selinux/config
+
