@@ -26,8 +26,14 @@
       notify:
         - restart apache
 
-    - name: gcc install
-      yum: name=gcc state=latest
+    - name: commons install
+      yum: name={{item}} state=latest
+      with_items:
+        - gcc
+        - gcc-c++
+        - make
+        - openssl-devel
+        - ncurses-devel 
 
     - name: redis download
       get_url: >
